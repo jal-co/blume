@@ -109,7 +109,11 @@ const referencesFor = (
 export const resolveReferences = (
   config: ResolvedConfig
 ): ReferenceSource[] => [
-  ...referencesFor("openapi", config.openapi, "API Reference"),
+  // OpenAPI rides the Scalar embed only when the native renderer is opted out of;
+  // the native renderer emits real pages instead (see `openapi/native.ts`).
+  ...(config.openapi.renderer === "scalar"
+    ? referencesFor("openapi", config.openapi, "API Reference")
+    : []),
   ...referencesFor("asyncapi", config.asyncapi, "Events"),
 ];
 
@@ -120,9 +124,10 @@ export const referenceTabs = (config: ResolvedConfig): NavTab[] =>
     path: ref.route,
   }));
 
-/** Whether any reference block is enabled (gates dependency + page wiring). */
+/** Whether any Scalar-rendered reference is enabled (gates dependency + pages). */
 export const hasReferences = (config: ResolvedConfig): boolean =>
-  config.openapi.enabled || config.asyncapi.enabled;
+  (config.openapi.enabled && config.openapi.renderer === "scalar") ||
+  config.asyncapi.enabled;
 
 const darkModeConfig = (
   mode: ResolvedConfig["theme"]["mode"]

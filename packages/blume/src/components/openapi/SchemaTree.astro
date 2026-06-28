@@ -1,0 +1,196 @@
+---
+import {
+  constraintChips,
+  formatScalar,
+  schemaTypeLabel,
+} from "../../openapi/display.ts";
+import type { SchemaNode } from "../../openapi/ir.ts";
+import Expandable from "../content/Expandable.astro";
+import Self from "./SchemaTree.astro";
+
+interface Props {
+  node: SchemaNode;
+  /** Nesting depth, for sane indentation of deeply nested schemas. */
+  depth?: number;
+}
+
+const { node, depth = 0 } = Astro.props;
+
+/** The node revealed when expanding a property — items for arrays, else itself. */
+const expandTarget = (schema: SchemaNode): SchemaNode =>
+  schema.kind === "array" ? expandTarget(schema.items) : schema;
+
+/** Whether a node has nested structure worth an expandable disclosure. */
+const isExpandable = (schema: SchemaNode): boolean => {
+  const target = expandTarget(schema);
+  if (target.kind === "object") {
+    return target.properties.length > 0;
+  }
+  return target.kind === "union" || target.kind === "raw";
+};
+
+/** A node's description, when its kind carries one. */
+const nodeDescription = (schema: SchemaNode): string | undefined =>
+  "description" in schema ? schema.description : undefined;
+---
+
+{
+  node.kind === "object" && (
+    <div class="not-prose font-sans text-sm">
+      {node.properties.length === 0 && (
+        <p class="text-muted-foreground">No properties.</p>
+      )}
+      {node.properties.map((property) => {
+        const chips = constraintChips(
+          property.schema.kind === "primitive" ||
+            property.schema.kind === "array"
+            ? property.schema.constraints
+            : {}
+        );
+        return (
+          <div class="border-border border-t py-2.5 first:border-t-0">
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <code class="font-medium text-foreground text-sm">
+                {property.name}
+              </code>
+              <span class="text-muted-foreground text-xs">
+                {schemaTypeLabel(property.schema)}
+              </span>
+              {property.required && (
+                <span class="text-red-600 text-xs dark:text-red-400">
+                  required
+                </span>
+              )}
+              {property.deprecated && (
+                <span class="text-amber-600 text-xs dark:text-amber-400">
+                  deprecated
+                </span>
+              )}
+            </div>
+            {chips.length > 0 && (
+              <div class="mt-1 flex flex-wrap gap-1.5">
+                {chips.map((chip) => (
+                  <span class="rounded bg-muted px-1.5 py-0.5 text-muted-foreground text-xs">
+                    {chip}
+                  </span>
+                ))}
+              </div>
+            )}
+            {property.schema.kind === "enum" && (
+              <div class="mt-1 flex flex-wrap gap-1.5">
+                {property.schema.values.map((value) => (
+                  <code class="rounded bg-muted px-1.5 py-0.5 text-foreground text-xs">
+                    {formatScalar(value)}
+                  </code>
+                ))}
+              </div>
+            )}
+            {nodeDescription(property.schema) && (
+              <p class="mt-1 whitespace-pre-line text-muted-foreground text-sm">
+                {nodeDescription(property.schema)}
+              </p>
+            )}
+            {isExpandable(property.schema) && (
+              <div class="mt-2">
+                <Expandable title="Show child attributes">
+                  <Self depth={depth + 1} node={expandTarget(property.schema)} />
+                </Expandable>
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {node.additional &&
+        typeof node.additional !== "boolean" &&
+        node.additional.kind === "object" && (
+          <div class="border-border border-t py-2.5">
+            <div class="text-muted-foreground text-xs">
+              additional properties
+            </div>
+            <div class="mt-2">
+              <Self depth={depth + 1} node={node.additional} />
+            </div>
+          </div>
+        )}
+    </div>
+  )
+}
+
+{
+  node.kind === "array" && (
+    <div class="not-prose text-sm">
+      <p class="text-muted-foreground">
+        Array of <span class="text-foreground">{schemaTypeLabel(node.items)}</span>
+      </p>
+      {isExpandable(node.items) && (
+        <div class="mt-2">
+          <Self depth={depth + 1} node={expandTarget(node.items)} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+{
+  node.kind === "union" && (
+    <div class="not-prose space-y-2 text-sm">
+      <p class="text-muted-foreground text-xs">
+        {node.variant === "oneOf" ? "One of" : "Any of"}
+        {node.discriminator && ` (by ${node.discriminator.propertyName})`}
+      </p>
+      {node.options.map((option, index) => (
+        <Expandable title={`Variant ${index + 1}: ${schemaTypeLabel(option)}`}>
+          <Self depth={depth + 1} node={option} />
+        </Expandable>
+      ))}
+    </div>
+  )
+}
+
+{
+  node.kind === "enum" && (
+    <div class="not-prose flex flex-wrap gap-1.5 text-sm">
+      {node.values.map((value) => (
+        <code class="rounded bg-muted px-1.5 py-0.5 text-foreground text-xs">
+          {formatScalar(value)}
+        </code>
+      ))}
+    </div>
+  )
+}
+
+{
+  node.kind === "primitive" && (
+    <div class="not-prose text-sm">
+      <span class="text-muted-foreground">{schemaTypeLabel(node)}</span>
+      {node.description && (
+        <p class="mt-1 whitespace-pre-line text-muted-foreground">
+          {node.description}
+        </p>
+      )}
+    </div>
+  )
+}
+
+{
+  node.kind === "ref-cycle" && (
+    <p class="not-prose text-muted-foreground text-sm">
+      ↻ {node.label} <span class="text-xs">(recursive)</span>
+    </p>
+  )
+}
+
+{
+  node.kind === "raw" && (
+    <details class="not-prose rounded-blume border border-border">
+      <summary class="cursor-pointer px-3 py-2 text-muted-foreground text-sm">
+        {node.title ?? "Schema"}
+      </summary>
+      <pre class="overflow-x-auto px-3 pb-3 text-xs"><code>{JSON.stringify(
+        node.schema,
+        null,
+        2
+      )}</code></pre>
+    </details>
+  )
+}

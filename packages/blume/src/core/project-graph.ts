@@ -1,5 +1,7 @@
 import { existsSync } from "node:fs";
 
+import type { OpenApiRuntime } from "../openapi/display.ts";
+import { buildNativeApi } from "../openapi/native.ts";
 import { loadConfig } from "./config.ts";
 import { discoverContent } from "./content.ts";
 import { BlumeError } from "./diagnostics.ts";
@@ -30,6 +32,8 @@ export interface BlumeProject {
   graph: ContentGraph;
   manifest: BlumeManifest;
   diagnostics: Diagnostic[];
+  /** Native OpenAPI render data, when the native renderer is enabled. */
+  openapi: OpenApiRuntime;
 }
 
 /**
@@ -91,8 +95,18 @@ export const scanProject = async (
     }
   }
 
-  const graph = buildContentGraph(pages, {
-    folderMeta: folderMeta.meta,
+  // Native OpenAPI: parse + lower enabled specs into synthetic pages that join
+  // the graph (and thus nav/search/llms/sitemap/SEO) like any other page. Folder
+  // meta is merged so reference groups get nice titles and tag ordering.
+  const api = await buildNativeApi({ config, context });
+  const mergedFolderMeta = new Map(folderMeta.meta);
+  for (const [key, value] of api.folderMeta) {
+    mergedFolderMeta.set(key, value);
+  }
+  const allPages = [...pages, ...api.pages];
+
+  const graph = buildContentGraph(allPages, {
+    folderMeta: mergedFolderMeta,
     navigation: config.navigation,
   });
   const manifest = buildManifest({ config, context, graph });
@@ -108,5 +122,6 @@ export const scanProject = async (
     graph,
     manifest,
     mode,
+    openapi: api.runtime,
   };
 };

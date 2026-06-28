@@ -43,8 +43,12 @@ const buildFull = async (project: BlumeProject): Promise<string> => {
 
   const sections = await Promise.all(
     pages.map(async (page) => {
-      const raw = await readFile(page.sourcePath, "utf-8");
-      const body = matter(raw).content.trim();
+      // Synthetic pages (e.g. native OpenAPI operations) carry their body in
+      // memory; everything else is read from its source file.
+      const body =
+        page.body === undefined
+          ? matter(await readFile(page.sourcePath, "utf-8")).content.trim()
+          : page.body.trim();
       const url = pageUrl(page.route, config.deployment.site);
       return [`# ${page.title}`, `Source: ${url}`, "", body].join("\n");
     })

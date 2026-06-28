@@ -1,0 +1,36 @@
+---
+import type { ApiExample } from "../../openapi/ir.ts";
+
+interface Props {
+  examples: ApiExample[];
+}
+
+const { examples } = Astro.props;
+---
+
+{
+  examples.length > 0 && (
+    <div class="not-prose mt-3 space-y-2">
+      {examples.map((example) => (
+        <div>
+          {(example.summary || example.name) && (
+            <p class="mb-1 text-muted-foreground text-xs">
+              {example.summary ?? example.name}
+            </p>
+          )}
+          {example.external ? (
+            <a
+              class="text-accent text-sm underline"
+              href={example.value}
+              rel="noreferrer"
+            >
+              {example.value}
+            </a>
+          ) : (
+            <pre class="overflow-x-auto rounded-blume border border-border bg-muted/40 p-3 text-xs"><code>{example.value}</code></pre>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}

@@ -83,6 +83,12 @@ export interface PageRecord {
   links: PageLink[];
   /** Resolved "last updated" ISO date, when the feature is enabled. */
   lastModified?: string;
+  /**
+   * In-memory page body for synthetic pages with no file on disk (e.g. native
+   * OpenAPI operations). When set, search/llms/raw-markdown use it instead of
+   * reading {@link sourcePath}.
+   */
+  body?: string;
 }
 
 /** A node in the generated navigation tree. */

@@ -66,8 +66,16 @@ export const buildSearchDocuments = async (
   return await Promise.all(
     indexable.map(async (route) => {
       const page = pageById.get(route.id);
-      const raw = page ? await readFile(page.sourcePath, "utf-8") : "";
-      const body = raw ? toPlainText(matter(raw).content) : "";
+      // Synthetic pages (native OpenAPI operations) carry their body in memory;
+      // file-backed pages are read from disk.
+      let body = "";
+      if (page?.body !== undefined) {
+        body = toPlainText(page.body);
+      } else if (page) {
+        body = toPlainText(
+          matter(await readFile(page.sourcePath, "utf-8")).content
+        );
+      }
       const tags = page?.meta?.search?.tags;
       return {
         content: body,

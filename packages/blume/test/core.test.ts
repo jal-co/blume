@@ -483,7 +483,11 @@ describe("api reference (scalar)", () => {
 
   it("treats the spec shorthand as a single source at the base route", () => {
     const config = blumeConfigSchema.parse({
-      openapi: { enabled: true, spec: "https://example.com/openapi.json" },
+      openapi: {
+        enabled: true,
+        renderer: "scalar",
+        spec: "https://example.com/openapi.json",
+      },
     });
     expect(resolveReferences(config)).toStrictEqual([
       {
@@ -500,6 +504,7 @@ describe("api reference (scalar)", () => {
     const config = blumeConfigSchema.parse({
       openapi: {
         enabled: true,
+        renderer: "scalar",
         sources: [
           { label: "Public API", spec: "https://x.dev/public.json" },
           { route: "/admin", spec: "https://x.dev/admin.json" },
@@ -513,7 +518,11 @@ describe("api reference (scalar)", () => {
   it("emits both openapi and asyncapi references as nav tabs", () => {
     const config = blumeConfigSchema.parse({
       asyncapi: { enabled: true, spec: "https://x.dev/async.yaml" },
-      openapi: { enabled: true, spec: "https://x.dev/openapi.json" },
+      openapi: {
+        enabled: true,
+        renderer: "scalar",
+        spec: "https://x.dev/openapi.json",
+      },
     });
     expect(referenceTabs(config)).toStrictEqual([
       { label: "API Reference", path: "/reference" },
@@ -521,10 +530,14 @@ describe("api reference (scalar)", () => {
     ]);
   });
 
-  it("declares @scalar/astro only when a reference is enabled", () => {
+  it("declares @scalar/astro only when a scalar-rendered reference is enabled", () => {
     const off = blumeConfigSchema.parse({});
     const on = blumeConfigSchema.parse({
-      openapi: { enabled: true, spec: "https://x.dev/openapi.json" },
+      openapi: {
+        enabled: true,
+        renderer: "scalar",
+        spec: "https://x.dev/openapi.json",
+      },
     });
     expect(
       runtimeDependencies({ config: off, needsReact: false })
@@ -536,7 +549,11 @@ describe("api reference (scalar)", () => {
 
   it("builds a prerendered page passing a remote spec straight through", async () => {
     const config = blumeConfigSchema.parse({
-      openapi: { enabled: true, spec: "https://x.dev/openapi.json" },
+      openapi: {
+        enabled: true,
+        renderer: "scalar",
+        spec: "https://x.dev/openapi.json",
+      },
       theme: { accent: "teal" },
     });
     const { files, warnings } = await buildReferenceFiles({
@@ -552,7 +569,11 @@ describe("api reference (scalar)", () => {
 
   it("emits a prerendered Scalar page with the spec url and theme accent", async () => {
     const config = blumeConfigSchema.parse({
-      openapi: { enabled: true, spec: "https://x.dev/openapi.json" },
+      openapi: {
+        enabled: true,
+        renderer: "scalar",
+        spec: "https://x.dev/openapi.json",
+      },
       theme: { accent: "teal" },
     });
     const { files } = await buildReferenceFiles({
@@ -568,7 +589,11 @@ describe("api reference (scalar)", () => {
 
   it("skips a reference whose route collides with a content page", async () => {
     const config = blumeConfigSchema.parse({
-      openapi: { enabled: true, spec: "https://x.dev/openapi.json" },
+      openapi: {
+        enabled: true,
+        renderer: "scalar",
+        spec: "https://x.dev/openapi.json",
+      },
     });
     const { files, warnings } = await buildReferenceFiles({
       config,

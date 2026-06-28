@@ -1,0 +1,144 @@
+---
+import { slugifyHeading } from "../../openapi/display.ts";
+import type {
+  ApiSecurityScheme,
+  ApiServer,
+  ApiTag,
+  ApiTagGroup,
+} from "../../openapi/ir.ts";
+import type { OpSummary } from "../../openapi/display.ts";
+import MethodBadge from "./MethodBadge.astro";
+
+interface Props {
+  title: string;
+  info: { description?: string; title: string; version: string };
+  originalVersion: string;
+  servers: ApiServer[];
+  security: ApiSecurityScheme[];
+  tags: ApiTag[];
+  tagGroups: ApiTagGroup[];
+  operations: OpSummary[];
+}
+
+const { info, operations, originalVersion, security, servers, tags } =
+  Astro.props;
+
+const tagDescription = new Map(tags.map((tag) => [tag.name, tag.description]));
+
+// Tag order: declared tags first, then any remaining seen on operations.
+const order: string[] = [];
+const seen = new Set<string>();
+for (const tag of tags) {
+  if (!seen.has(tag.name)) {
+    seen.add(tag.name);
+    order.push(tag.name);
+  }
+}
+for (const operation of operations) {
+  if (!seen.has(operation.tag)) {
+    seen.add(operation.tag);
+    order.push(operation.tag);
+  }
+}
+const groups = order
+  .map((tag) => ({
+    description: tagDescription.get(tag),
+    operations: operations.filter((operation) => operation.tag === tag),
+    tag,
+  }))
+  .filter((group) => group.operations.length > 0);
+---
+
+<h1>{info.title}</h1>
+
+<div class="not-prose mb-4 flex flex-wrap items-center gap-2 text-sm">
+  {
+    info.version && (
+      <span class="rounded bg-muted px-2 py-0.5 text-muted-foreground text-xs">
+        v{info.version}
+      </span>
+    )
+  }
+  <span class="rounded bg-muted px-2 py-0.5 text-muted-foreground text-xs">
+    OpenAPI {originalVersion}
+  </span>
+</div>
+
+{
+  info.description && (
+    <p class="whitespace-pre-line text-muted-foreground">{info.description}</p>
+  )
+}
+
+{
+  servers.length > 0 && (
+    <section>
+      <h2 id="servers">Servers</h2>
+      <ul class="not-prose space-y-1 text-sm">
+        {servers.map((server) => (
+          <li>
+            <code class="text-foreground">{server.url}</code>
+            {server.description && (
+              <span class="ml-2 text-muted-foreground text-xs">
+                {server.description}
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+{
+  security.length > 0 && (
+    <section>
+      <h2 id="authentication">Authentication</h2>
+      <ul class="not-prose space-y-1.5 text-sm">
+        {security.map((scheme) => (
+          <li class="text-muted-foreground">
+            <code class="text-foreground">{scheme.name}</code>
+            <span class="text-xs"> — {scheme.type}</span>
+            {scheme.detail && <span class="text-xs"> ({scheme.detail})</span>}
+            {scheme.flowsSummary && (
+              <span class="text-xs"> flows: {scheme.flowsSummary}</span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+{
+  groups.map((group) => (
+    <section>
+      <h2 id={slugifyHeading(group.tag)}>{group.tag}</h2>
+      {group.description && (
+        <p class="whitespace-pre-line text-muted-foreground">
+          {group.description}
+        </p>
+      )}
+      <ul class="not-prose mt-3 space-y-1">
+        {group.operations.map((operation) => (
+          <li>
+            <a
+              class="flex items-center gap-3 rounded-blume border border-transparent px-2 py-2 transition-colors hover:border-border hover:bg-muted/50"
+              href={operation.route}
+            >
+              <MethodBadge method={operation.method} />
+              <span class="min-w-0 flex-1">
+                <span class="block truncate font-medium text-foreground text-sm">
+                  {operation.summary ?? operation.path}
+                </span>
+                <span class="block truncate font-mono text-muted-foreground text-xs">
+                  {operation.path}
+                </span>
+              </span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
+  ))
+}

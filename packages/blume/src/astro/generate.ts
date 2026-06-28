@@ -277,7 +277,8 @@ export const buildRuntimeData = (project: BlumeProject): string => {
   const editBase = github ? `${repoUrl}/edit/${github.branch}` : null;
 
   const editUrlFor = (sourcePath: string): string | null => {
-    if (!editBase) {
+    // Synthetic pages (native OpenAPI operations) have no source file to edit.
+    if (!editBase || sourcePath === "") {
       return null;
     }
     const rel = relative(context.root, sourcePath).split("\\").join("/");
@@ -310,11 +311,16 @@ export const buildRuntimeData = (project: BlumeProject): string => {
     // CSS variables for Astro's <Font> component; matches the astro.config
     // `fonts:` entries derived from the same theme.fonts config.
     fontCssVars: configuredCssVars(config.theme.fonts),
-    // API reference routes (Scalar) surface as header tabs alongside the
-    // content-derived ones, so the reference stays discoverable.
+    // API reference routes surface as header tabs alongside the content-derived
+    // ones, so the reference stays discoverable. Native references contribute
+    // their own tabs; Scalar-embedded references add theirs via referenceTabs.
     navigation: {
       ...graph.navigation,
-      tabs: [...graph.navigation.tabs, ...referenceTabs(config)],
+      tabs: [
+        ...graph.navigation.tabs,
+        ...referenceTabs(config),
+        ...project.openapi.tabs,
+      ],
     },
     routes: manifest.routes.map((route) => ({
       draft: route.draft,
@@ -525,10 +531,27 @@ export const generateRuntime = async (
     );
   }
 
-  // Data and manifest are not "structural" for Astro; they hot-reload.
+  // Native references are served by the catch-all at their base route. Remove any
+  // stale standalone reference page there (e.g. a Scalar page left from a build
+  // with renderer:"scalar") so it can't shadow the catch-all's overview route.
+  await Promise.all(
+    project.openapi.tabs.map((tab) => {
+      const segments = tab.path.replaceAll(/^\/+|\/+$/gu, "");
+      const pagePath = `${segments === "" ? "index" : segments}.astro`;
+      return rm(join(srcDir, "pages", pagePath), { force: true });
+    })
+  );
+
+  // Data and manifest are not "structural" for Astro; they hot-reload. The
+  // OpenAPI render data is always written (even empty) so the catch-all page's
+  // import of it resolves whether or not the native renderer is in use.
   await writeIfChanged(
     join(srcDir, "generated", "data.json"),
     buildRuntimeData(project)
+  );
+  await writeIfChanged(
+    join(srcDir, "generated", "openapi.json"),
+    `${JSON.stringify(project.openapi)}\n`
   );
   await writeIfChanged(
     join(out, "blume.manifest.json"),

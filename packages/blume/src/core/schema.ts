@@ -448,8 +448,9 @@ const markdownConfigSchema = z
   .strict();
 
 /**
- * A single spec rendered by the API reference (Scalar). `spec` is a local path
- * or an `http(s)` URL; Scalar auto-detects OpenAPI vs AsyncAPI documents.
+ * A single spec rendered by the API reference. `spec` is a local path or an
+ * `http(s)` URL. The native renderer parses it at build time; the Scalar
+ * renderer hands the document to Scalar (which auto-detects OpenAPI/AsyncAPI).
  */
 const openapiSourceSchema = z
   .object({
@@ -465,20 +466,32 @@ const openapiSourceSchema = z
 export type OpenApiSource = z.infer<typeof openapiSourceSchema>;
 
 /**
- * OpenAPI reference, delegated wholesale to Scalar (`@scalar/astro`). The
- * reference is a self-contained embed on its own route — it does not weave into
- * Blume's sidebar, search, or llms. Set `enabled: true` to opt in.
+ * OpenAPI reference. The `native` renderer (default) parses the spec at build
+ * time and emits one real Blume page per operation — woven into the sidebar,
+ * search, llms.txt, and per-operation SEO/OG. The `scalar` renderer keeps the
+ * legacy self-contained Scalar embed (`@scalar/astro`) on a single route, useful
+ * as a fallback for specs the native renderer can't yet do justice. Set
+ * `enabled: true` to opt in.
  */
 const openapiConfigSchema = z
   .object({
     enabled: z.boolean().default(false),
-    /** Where the reference mounts. */
+    /**
+     * Reserved: opt into a per-operation interactive "Try it" island for the
+     * native renderer. Off by default so the site stays zero-JS. The island
+     * itself is not wired up yet; for an interactive playground today use
+     * `renderer: "scalar"`.
+     */
+    playground: z.boolean().default(false),
+    /** Which renderer to use. `native` (default) or the legacy `scalar` embed. */
+    renderer: z.enum(["native", "scalar"]).default("native"),
+    /** Where the reference mounts (operations live under this base route). */
     route: z.string().default("/reference"),
     /** One or more specs; each renders on its own route by default. */
     sources: z.array(openapiSourceSchema).default([]),
     /** Shorthand for a single source: `sources: [{ spec }]`. */
     spec: z.string().optional(),
-    /** Scalar theme name; defaults to a Blume-derived accent override. */
+    /** Scalar theme name (scalar renderer only); defaults to a Blume override. */
     theme: z.string().optional(),
   })
   .strict();

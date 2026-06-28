@@ -1,0 +1,176 @@
+---
+import { PARAM_GROUPS, slugifyHeading } from "../../openapi/display.ts";
+import type { ApiOperation, ApiServer } from "../../openapi/ir.ts";
+import Callout from "../content/Callout.astro";
+import Body from "./Body.astro";
+import MethodBadge from "./MethodBadge.astro";
+import SchemaTree from "./SchemaTree.astro";
+
+interface Props {
+  operation: ApiOperation;
+  servers: ApiServer[];
+  playground: boolean;
+}
+
+const { operation, servers } = Astro.props;
+
+const baseUrl = servers[0]?.url ?? "";
+const fullPath = `${baseUrl}${operation.path}`;
+
+/** Status-class for a response code badge. */
+const statusStyle = (status: string): string => {
+  const code = Number.parseInt(status, 10);
+  if (code >= 200 && code < 300) {
+    return "bg-green-500/10 text-green-700 dark:text-green-400";
+  }
+  if (code >= 300 && code < 400) {
+    return "bg-blue-500/10 text-blue-700 dark:text-blue-400";
+  }
+  if (code >= 400 && code < 500) {
+    return "bg-amber-500/10 text-amber-700 dark:text-amber-400";
+  }
+  if (code >= 500) {
+    return "bg-red-500/10 text-red-700 dark:text-red-400";
+  }
+  return "bg-muted text-muted-foreground";
+};
+
+const groupedParameters = PARAM_GROUPS.map((group) => ({
+  label: group.label,
+  parameters: operation.parameters.filter((parameter) => parameter.in === group.in),
+})).filter((group) => group.parameters.length > 0);
+---
+
+<div class="not-prose mb-5 flex flex-wrap items-center gap-3">
+  <MethodBadge method={operation.method} />
+  <code class="break-all rounded-md bg-muted px-2 py-1 font-mono text-foreground text-sm">
+    {fullPath}
+  </code>
+</div>
+
+<h1>{operation.summary ?? `${operation.method} ${operation.path}`}</h1>
+
+{
+  operation.deprecated && (
+    <Callout type="warning">This operation is deprecated.</Callout>
+  )
+}
+
+{
+  operation.description && (
+    <p class="whitespace-pre-line text-muted-foreground">
+      {operation.description}
+    </p>
+  )
+}
+
+{
+  operation.security.length > 0 && (
+    <section>
+      <h2 id={slugifyHeading("Authorizations")}>Authorizations</h2>
+      <ul class="not-prose space-y-1.5 text-sm">
+        {operation.security.map((requirement) => (
+          <li class="text-muted-foreground">
+            {requirement.schemes.map((scheme, index) => (
+              <span>
+                {index > 0 && <span class="text-xs"> and </span>}
+                <code class="text-foreground">{scheme.scheme}</code>
+                {scheme.scopes.length > 0 && (
+                  <span class="text-xs"> ({scheme.scopes.join(", ")})</span>
+                )}
+              </span>
+            ))}
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+{
+  groupedParameters.map((group) => (
+    <section>
+      <h2 id={slugifyHeading(group.label)}>{group.label}</h2>
+      <div class="not-prose">
+        {group.parameters.map((parameter) => (
+          <div class="border-border border-t py-2.5 first:border-t-0">
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <code class="font-medium text-foreground text-sm">
+                {parameter.name}
+              </code>
+              {parameter.required && (
+                <span class="text-red-600 text-xs dark:text-red-400">
+                  required
+                </span>
+              )}
+              {parameter.deprecated && (
+                <span class="text-amber-600 text-xs dark:text-amber-400">
+                  deprecated
+                </span>
+              )}
+            </div>
+            {parameter.description && (
+              <p class="mt-1 whitespace-pre-line text-muted-foreground text-sm">
+                {parameter.description}
+              </p>
+            )}
+            {parameter.schema && (
+              <div class="mt-2">
+                <SchemaTree node={parameter.schema} />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+  ))
+}
+
+{
+  operation.requestBody && operation.requestBody.content.length > 0 && (
+    <section>
+      <h2 id={slugifyHeading("Request body")}>Request body</h2>
+      {operation.requestBody.description && (
+        <p class="whitespace-pre-line text-muted-foreground">
+          {operation.requestBody.description}
+        </p>
+      )}
+      {operation.requestBody.required && (
+        <p class="not-prose mb-2 text-red-600 text-xs dark:text-red-400">
+          required
+        </p>
+      )}
+      <Body content={operation.requestBody.content} />
+    </section>
+  )
+}
+
+{
+  operation.responses.length > 0 && (
+    <section>
+      <h2 id={slugifyHeading("Responses")}>Responses</h2>
+      <div class="not-prose space-y-5">
+        {operation.responses.map((response) => (
+          <div>
+            <div class="mb-2 flex items-center gap-2">
+              <span
+                class:list={[
+                  "inline-flex items-center rounded-md px-2 py-0.5 font-mono font-semibold text-xs",
+                  statusStyle(response.status),
+                ]}
+              >
+                {response.status}
+              </span>
+              {response.description && (
+                <span class="text-muted-foreground text-sm">
+                  {response.description}
+                </span>
+              )}
+            </div>
+            {response.content.length > 0 && <Body content={response.content} />}
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
